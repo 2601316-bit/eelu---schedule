@@ -1,0 +1,297 @@
+!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EELU Schedule - جدول المحاضرات</title>
+
+  <!-- ربط ملف الـ Manifest لتثبيت التطبيق -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#38bdf8">
+
+  <!-- استدعاء مكتبة html2canvas لتصوير الجدول -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --accent-color: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --badge-vcr: #e11d48;
+      --badge-ftf: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
+    header h1 { font-size: 1.8rem; color: var(--accent-color); margin-bottom: 5px; }
+    header p { color: var(--text-muted); font-size: 0.95rem; }
+    
+    .developer-badge {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 16px;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid var(--accent-color);
+      border-radius: 20px;
+      color: var(--accent-color);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      direction: ltr;
+    }
+
+    /* مربع المدخلات Inputs */
+    .controls-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 25px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+    }
+    .control-group { display: flex; flex-direction: column; gap: 5px; }
+    .control-group label { font-size: 0.85rem; color: var(--text-muted); }
+    select {
+      background: var(--bg-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    /* أزرار الإجراءات */
+    .actions-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .btn {
+      background: var(--card-bg);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+    .btn-primary { background: var(--accent-color); color: #000; font-weight: bold; border: none; }
+    .btn-primary:hover { background: #0284c7; color: #fff; }
+
+    /* زر التثبيت ظاهر ومميز بلون أخضر */
+    #installBtn { display: flex; background: #10b981; color: #fff; border: none; font-weight: bold; }
+    #installBtn:hover { background: #059669; }
+
+    /* مربع المخرجات Outputs - الجدول */
+    .schedule-wrapper { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); overflow: hidden; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; text-align: right; }
+    th { background: #182234; color: var(--accent-color); padding: 14px; font-size: 0.95rem; border-bottom: 2px solid var(--border-color); }
+    td { padding: 14px; border-bottom: 1px solid var(--border-color); font-size: 0.95rem; }
+    tr:last-child td { border-bottom: none; }
+    
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; display: inline-block; }
+    .badge-vcr { background: rgba(225, 29, 72, 0.2); color: var(--badge-vcr); border: 1px solid var(--badge-vcr); }
+    .badge-ftf { background: rgba(16, 185, 129, 0.2); color: var(--badge-ftf); border: 1px solid var(--badge-ftf); }
+
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; background: var(--accent-color); color: #000;
+      padding: 10px 20px; border-radius: 8px; font-weight: bold; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>EELU Schedule</h1>
+    <p>Faculty of Computers and Artificial Intelligence - Ain Shams Branch</p>
+    <div>
+      <span class="developer-badge">Developed by: Eyad Ahmed</span>
+    </div>
+  </header>
+
+  <!-- المداخل (Inputs) -->
+  <div class="controls-card">
+    <div class="control-group">
+      <label>الفرع</label>
+      <select id="b" onchange="updateURL()">
+        <option value="ain-shams">عين شمس</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>السنة الدراسية</label>
+      <select id="y" onchange="updateURL()">
+        <option value="1">السنة الأولى</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>الشعبة</label>
+      <select id="t" onchange="updateURL()">
+        <option value="sci">علمي علوم</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>المجموعة</label>
+      <select id="g" onchange="updateURL()">
+        <option value="A">Group A</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>السكشن</label>
+      <select id="s" onchange="updateURL()">
+        <option value="1">سكشن 1</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- الأزرار التفاعلية -->
+  <div class="actions-bar">
+    <button class="btn btn-primary" onclick="downloadImage()">📸 تحميل الجدول كصورة</button>
+    <button class="btn" onclick="copyURL()">🔗 نسخ رابط الجدول</button>
+    <!-- زر تثبيت التطبيق -->
+    <button class="btn" id="installBtn" onclick="installApp()">📱 تثبيت التطبيق كتطبيق</button>
+  </div>
+
+  <!-- المخرجات (Outputs) -->
+  <div class="schedule-wrapper" id="captureArea">
+    <table>
+      <thead>
+        <tr>
+          <th>اليوم</th>
+          <th>المادة</th>
+          <th>المحاضر</th>
+          <th>النوع</th>
+          <th>التوقيت</th>
+          <th>القاعة / المعمل</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast">تم النسخ بنجاح!</div>
+
+<script>
+  let fullData = {};
+
+  // وظيفة تثبيت التطبيق الإرشادية
+  function installApp() {
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      alert("التطبيق مثبت بالفعل على جهازك!");
+    } else {
+      alert("لتثبيت التطبيق على جهازك:\n- من هاتف محمول/تابلت: افتح قائمة المتصفح (...) واختار 'الإضافة إلى الشاشة الرئيسية' (Add to Home screen).\n- من الكمبيوتر: اضغط على أيقونة التثبيت في شريط العنوان أعلى المتصفح.");
+    }
+  }
+
+  // قراءة ملف JSON الخارجي
+  async function loadData() {
+    try {
+      const response = await fetch('data.json');
+      fullData = await response.json();
+      render();
+    } catch (err) {
+      console.error("خطأ في تحميل ملف JSON:", err);
+    }
+  }
+
+  // تحديث الـ URL Hash
+  function updateURL() {
+    const b = document.getElementById('b').value;
+    const y = document.getElementById('y').value;
+    const t = document.getElementById('t').value;
+    const g = document.getElementById('g').value;
+    const s = document.getElementById('s').value;
+    window.location.hash = `b=${b}&y=${y}&t=${t}&g=${g}&s=${s}`;
+    render();
+  }
+
+  // تفكيك الـ Hash واستخراج القيم
+  function getParams() {
+    const hash = window.location.hash.substring(1);
+    const p = new URLSearchParams(hash);
+    return {
+      b: p.get('b') || 'ain-shams',
+      y: p.get('y') || '1',
+      t: p.get('t') || 'sci',
+      g: p.get('g') || 'A',
+      s: p.get('s') || '1'
+    };
+  }
+
+  // عرض الجدول (Output)
+  function render() {
+    const { b, y, t, g, s } = getParams();
+
+    document.getElementById('b').value = b;
+    document.getElementById('y').value = y;
+    document.getElementById('t').value = t;
+    document.getElementById('g').value = g;
+    document.getElementById('s').value = s;
+
+    const list = fullData[b]?.[y]?.[t]?.[g]?.[s] || [];
+    const tbody = document.getElementById('scheduleBody');
+    tbody.innerHTML = '';
+
+    if (list.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">لا توجد بيانات متاحة لهذا السكشن</td></tr>`;
+      return;
+    }
+
+    list.forEach(item => {
+      const isVCR = item.type.includes("VCR");
+      const badgeClass = isVCR ? "badge-vcr" : "badge-ftf";
+      
+      const row = `<tr>
+        <td><strong>${item.day}</strong></td>
+        <td>${item.subject}</td>
+        <td>${item.doctor}</td>
+        <td><span class="badge ${badgeClass}">${item.type}</span></td>
+        <td>${item.time}</td>
+        <td>${item.hall}</td>
+      </tr>`;
+      tbody.innerHTML += row;
+    });
+  }
+
+  // نسخ الرابط لحافظة الجهاز
+  function copyURL() {
+    navigator.clipboard.writeText(window.location.href);
+    showToast("تم نسخ رابط الجدول بنجاح!");
+  }
+
+  // تحميل الجدول كصورة عبر html2canvas
+  function downloadImage() {
+    const element = document.getElementById('captureArea');
+    html2canvas(element, { backgroundColor: '#1e293b' }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `EELU_Schedule_Sec1.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.innerText = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 2500);
+  }
+
+  window.addEventListener('hashchange', render);
+  window.addEventListener('DOMContentLoaded', loadData);
+</script>
+
+</body>
+</html>
